@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title></title>
+		
+		<script src="http://d3js.org/d3.v3.min.js" type="text/javascript"></script>
+		<script src="http://labratrevenge.com/d3-tip/javascripts/d3.tip.v0.6.3.js"></script>
+		
+		<style>
+
+			.axis {
+			  font: 10px sans-serif;
+			}
+
+			.axis path,
+			.axis line {
+			  fill: none;
+			  stroke: #000;
+			  shape-rendering: crispEdges;
+			}
+			
+			svg{
+				border: 1px solid black;
+			}
+			
+			g{
+				border:1px solid green;
+			}
+			
+			
+			.d3-tip {
+			  line-height: 1;
+			  font-weight: bold;
+			  padding: 12px;
+			  background: rgba(0, 0, 0, 0.8);
+			  color: #fff;
+			  border-radius: 2px;
+			}
+			
+			/* Creates a small triangle extender for the tooltip */
+			.d3-tip:after {
+			  box-sizing: border-box;
+			  display: inline;
+			  font-size: 10px;
+			  width: 100%;
+			  line-height: 1;
+			  color: rgba(0, 0, 0, 0.8);
+			  content: "\25BC";
+			  position: absolute;
+			  text-align: center;
+			}
+			
+			/* Style northward tooltips differently */
+			.d3-tip.n:after {
+			  margin: -1px 0 0 0;
+			  top: 100%;
+			  left: 0;
+			}
+			.timerect:hover{
+				fill:yellow
+			}
+			.timerect_drop:hover{
+				fill:yellow
+			}
+	
+	</style>
+	</head>
+	<div id="chart">
+		<svg id ='firstsvg'></svg>
+	</div>
+	<body>
+		<script type="text/javascript">
+			
+			//第一步:设置好画布以及组
+			//set margin
+			var margin = {left: 100, right:100, top:150, bottom:250};
+			//set svg width and height
+			var width =  1500- margin.left - margin.right;
+			var height = 2200- margin.top - margin.bottom;
+			
+			//set svg
+			var svg = d3.select('#firstsvg')
+					.attr('width',width+margin.left+margin.right)
+					.attr('height',height + margin.top+margin.left)
+					
+			//set group transform	
+			var g = svg.append('g')
+						.attr('transform','translate('+ (margin.left+300)+','+ margin.top +')')
+						
+			var g2 = svg.append('g')
+						.attr('transform','translate('+ (margin.left+width/2+margin.left)+','+ (100+height/2+200) +')')
+						
+			var g3 = svg.append('g')
+						.attr('transform','translate('+ (margin.left+100)+','+(margin.top+100+height/2+200) +')')
+			
+			var tip = d3.tip()
+				  .attr('class', 'd3-tip')
+				  .offset([-10, 0])
+				  .html(function(d) {
+					return "<strong style='color:white'>serving rate</strong><span style='color:red'>" +Math.round(100*(100-d.percentage))/100+ "</span>";
+				  })
+			
+			
+			
+			d3.csv('requests.csv',function(request){
+				
+				
+				var total_hours = request.map(function(d){
+					let date = new Date(Number(d.Timestamp)*1000);
+					let hours = date.getHours();
+					return hours
+				})
+				
+				var total_counts = {};
+				total_hours.forEach(function(x) { total_counts[x] = (total_counts[x] || 0)+1; });
+				
+				var total_time = Object.keys(total_counts)
+				var total = Object.values(total_counts)
+				
+				var totaljson = total_time.map(function(d,i){
+					return {time:d,total:total[i]}
+				})
+				
+				totaljson.push({time:'overall', total:total.reduce(function(a,b){
+					return a+b
+				})})
+				
+				
+				
+				var noserve= request.filter(function(d){
+					return d.Actual_Pickup =="-1"
+				})
+				
+				
+				
+				var noserve_hours = noserve.map(function(d){
+					let date = new Date(Number(d.Timestamp)*1000);
+					let hours = date.getHours();
+					return hours
+				})
+				
+				
+				var counts = {};
+				noserve_hours.forEach(function(x) { counts[x] = (counts[x] || 0)+1; });
+				var time = Object.keys(counts)
+				var miss = Object.values(counts)
+				
+				var countjson = time.map(function(d,i){
+					return {time:d,miss:miss[i]}
+				})
+				
+				countjson.push({time:'overall',miss:miss.reduce(function(a,b){
+					return a+b;
+				})})
+				
+				for (let i = 0; i<countjson.length;i++){
+					countjson[i].serve = totaljson[i].total-countjson[i].miss
+					
+				}
+				
+				
+				
+				console.log(countjson)
+				console.log(totaljson)
+				
+				total_percent = totaljson.map(function(d,i){
+					return {time:d.time,percentage:100*countjson[i].miss/d.total}
+				})
+				console.log(total_percent)
+				
+				
+				//第三步:设置好比例尺
+				var xscale = d3.scale.ordinal()
+								.domain(Object.keys(total_counts))
+								.rangeRoundBands([0,width/2],0.5,0.5)
+								
+								
+				var yscale = d3.scale.linear()
+								.domain([0,d3.max(Object.values(total_counts),function(d){
+									return d;
+								})
+								])
+								.range([height/4,0])
+				//第四步:设置好坐标轴 -- 好好看看文档
+				var xAxis = d3.svg.axis()
+							.scale(xscale)
+							.orient("bottom")
+				
+				g.append('g')
+					.attr('class','x axis')
+					.attr('transform','translate(0,'+ height/4 +')')
+					.call(xAxis)
+				.selectAll('text')
+					// .attr('x',-5)
+					// .attr('y',10)
+					.attr('text-anchor','center')
+					// .attr('transform','rotate(-40)')
+				
+				
+				
+				var yAxis = d3.svg.axis()
+							.scale(yscale)
+							.orient("left")
+											
+				g.append('g')
+					.attr('class','y axis')
+					.call(yAxis);
+					
+				var yscale2 = d3.scale.linear()
+								.domain([0,d3.max(total_percent,function(d){
+									return d.percentage;
+								})
+								])
+								.range([0,height/4])
+								
+				var yAxis2 = d3.svg.axis()
+							.scale(yscale2)
+							.orient("left")
+							
+							
+							
+							
+							
+				var xscale2 = d3.scale.ordinal()
+								.domain(totaljson.map(function(d){
+									return d.time
+								}))
+								.rangeRoundBands([0,width/2],0.5,0.5)
+								
+				var xAxis2 = d3.svg.axis()
+							.scale(xscale2)
+							.orient("left")
+				
+				g2.append('g')
+					.attr('class','z axis')
+					
+					.call(xAxis2)
+				.selectAll('text')
+					// .attr('x',-5)
+					// .attr('y',10)
+					.attr('text-anchor','center')
+					// .attr('transform','rotate(-40)')	
+							
+				
+				 g.selectAll(".bar")
+					  .data(countjson.slice(0,countjson.length-1))
+					  .enter().append("rect")
+					  .attr('class','bar')
+					  .style("fill", "steelblue")
+					  
+					  .attr("x", function(d,i) { return xscale(d.time); })
+					  .attr("width", xscale.rangeBand())
+					  .attr("y", function(d,i) { return yscale(d.serve); })
+					  .attr("height", function(d) { 
+						  return height/4 - yscale(d.serve); 
+						  });
+						  
+						  
+				 g.selectAll(".xbar")
+					  .data(totaljson.slice(0,totaljson.length-1))
+					  .enter().append("rect")
+					  .attr('class','xbar')
+					  .style('opacity','0.5')
+					  .style("fill", "red")
+					  .attr("x", function(d,i) { return xscale(d.time); })
+					  .attr("width", xscale.rangeBand())
+					  .attr("y", function(d,i) { return yscale(d.total); })
+					  .attr("height", function(d) { 
+						  return height/4 - yscale(d.total); 
+						  });
+						  
+					  
+				
+				g2.selectAll('.zbar')
+						.data(total_percent)
+						.enter().append('rect')	
+						.attr('class','zbar')
+						.attr('id',function(d,i){
+							return 'r'+i;
+						})
+						.style('fill','aqua')
+						.attr('y',function(d,i){return xscale2(d.time);})
+						.attr('height',xscale.rangeBand() )
+						.attr('x',0)
+						.attr('width',function(d){
+							return yscale2(100)-yscale2(d.percentage)
+						})
+						.call(tip)
+						.on('mouseover',tip.show)
+						.on('mouseout',tip.hide)
+					
+				console.log(total_percent)
+						
+				g2.selectAll('.zbar')
+						.data(total_percent,function(d){
+							return (d.time ==='overall');
+						})
+						.style('fill','red')
+				
+				g2.selectAll('.zbar')
+						.data(total_percent,function(d){
+							return (d.time ==='0');
+						})
+						.style('fill','aqua')
+						
+				g.append('text')
+					.text('Total Request VS Serving Number By hours')
+					.attr('x',width/6)
+					.attr('fill','black')
+					
+				g.append('rect')
+					.attr('x','50px')
+					.attr('y',0)
+					.attr('width','10px')
+					.attr('height','10px')
+					.attr('fill','#ff858b')
+				g.append('text')
+					.text('Total request')
+					.attr('x','60px')
+					.attr('y','10px')
+					.attr('fill','black')
+					.style('font-size','13px')
+				g.append('rect')
+					.attr('x','50px')
+					.attr('y','20px')
+					.attr('width','10px')
+					.attr('height','10px')
+					.attr('fill','#a54766')
+					
+				g.append('text')
+					.text('Serving request')
+					.attr('x','60px')
+					.attr('y','30px')
+					.attr('fill','black')
+					.style('font-size','13px')
+					
+				g2.append('text')
+					.text('Serving Rate By hours %')
+					.attr('x','200px')
+					
+				
+				
+				
+				
+				noserve.forEach(function(d){
+					let date = new Date(Number(d.Timestamp)*1000);
+					d.Timestamp=date.getHours()
+					
+				})
+				console.log(noserve)
+				d3.json('manhattan.geojson',function(zipcodes){
+				console.log(zipcodes)
+				 
+				projection = d3.geo.mercator()
+							 .scale(Math.pow(2, 12.66 + 5.34))
+							 .center([-73.975,40.77])
+							 .translate([200/2, 200/2]),
+							  
+			  path= d3.geo.path()
+					.projection(projection);
+				
+				// Let's create a path for each (new) zipcode shape
+			  g3.selectAll(".zipcode")
+				.data(zipcodes.features)
+				.enter().append("path")
+				  .attr("class", "zipcode")
+				  .attr("d", path)
+				  .attr("d", path.pointRadius(0.1))
+				  .attr('stroke','black')
+				  .attr("stroke-width", "0.1px")
+				  .style('fill','white')
+			
+			var timeinput = document.getElementById('settime')
+			var timeinputbt = document.getElementById('settimebt')
+			
+			
+			g3.selectAll('.timerect')
+				.data(Object.keys(counts))
+				.enter()
+				.append('rect')
+				.attr('id',function(d){
+					return d
+				})
+				.attr('class','timerect')
+				.attr('x','390px')
+				.attr('y',function(d,i){
+					return i*20
+				})
+				.attr('width','18px')
+				.attr('height','18px')
+				.attr('fill','blue')
+				
+				
+			g3.selectAll('.timerect_drop')
+				.data(Object.keys(counts))
+				.enter()
+				.append('rect')
+				.attr('id',function(d){
+					return 'h'+d
+				})
+				.attr('class','timerect_drop')
+				.attr('x','445px')
+				.attr('y',function(d,i){
+					
+					return i*20
+				})
+				.attr('width','18px')
+				.attr('height','18px')
+				.attr('fill','red')
+				
+			
+			g3.selectAll('.timetext')
+				.data(Object.keys(counts))
+				.enter()
+				.append('text')
+				.text(function(d){
+					return d
+				})
+				.attr('x',function(d){
+					if (+d<10){
+						return '425px';
+					}
+					else{
+						return '420px';
+					}
+				})
+				.attr('y',function(d,i){
+					return i*20+15;
+				})
+				.style('fill','black')
+				
+			g3.append('text')
+				.text('Pick up')
+				.attr('x','370px')
+				.attr('y',-5)
+			g3.append('text')
+				.text('Drop off')
+				.attr('x','430px')
+				.attr('y',-5)
+			g3.selectAll('.timerect')
+				.on('mouseover',function(){
+					let time  =+this.id;
+					console.log('#r'+time)
+					d3.select('#r'+time)
+						.style('fill','yellow')
+					let noserve_new =  noserve.filter(function(d){
+									  return d.Timestamp==time;
+					 })
+					let noserve_origin = noserve_new.map(function(d){
+					  return d.Requested_Pickup
+					
+					 })
+					noserve_origin = noserve_origin.map(function(d){
+						return Number(d)
+					 })
+					 
+					let zipcode_filter = zipcodes.features.filter(function(d){
+						  if (noserve_origin.indexOf(d.id)!=-1){
+							  
+							  return d
+						  }
+					 })
+					 
+					 g3.selectAll('.zipcode')
+									.data(zipcode_filter,function(d){
+										return d.id
+									})
+									.attr("d", path.pointRadius(2))
+									.style('fill','blue')
+				})
+				.on('mouseout',function(){
+					d3.selectAll('.zbar')
+						.style('fill','aqua')
+					g2.selectAll('.zbar')
+							.data(total_percent,function(d){
+								return (d.time ==='overall');
+							})
+							.style('fill','red')
+					
+					g2.selectAll('.zbar')
+							.data(total_percent,function(d){
+								return (d.time ==='0');
+							})
+							.style('fill','aqua')
+					g3.selectAll('.zipcode')
+						.attr("d", path.pointRadius(0.1))
+						.attr('stroke','black')
+						.attr("stroke-width", "0.1px")
+						.style('fill','white')
+				})
+			g3.selectAll('.timerect_drop')
+				.on('mouseover',function(){
+					let time  =+this.id.slice(1)
+					d3.select('#r'+time)
+						.style('fill','yellow')
+					let noserve_new =  noserve.filter(function(d){
+									  return d.Timestamp==time;
+					 })
+					let noserve_origin = noserve_new.map(function(d){
+					  return d.Requested_Dropoff
+					
+					 })
+					noserve_origin = noserve_origin.map(function(d){
+						return Number(d)
+					 })
+					 
+					let zipcode_filter = zipcodes.features.filter(function(d){
+						  if (noserve_origin.indexOf(d.id)!=-1){
+							  
+							  return d
+						  }
+					 })
+					 
+					 g3.selectAll('.zipcode')
+									.data(zipcode_filter,function(d){
+										return d.id
+									})
+									.attr("d", path.pointRadius(2))
+									.style('fill','red')
+				})
+				.on('mouseout',function(){
+					d3.selectAll('.zbar')
+						.style('fill','aqua')
+					g2.selectAll('.zbar')
+							.data(total_percent,function(d){
+								return (d.time ==='overall');
+							})
+							.style('fill','red')
+					
+					g2.selectAll('.zbar')
+							.data(total_percent,function(d){
+								return (d.time ==='0');
+							})
+							.style('fill','aqua')
+					g3.selectAll('.zipcode')
+						.attr("d", path.pointRadius(0.1))
+						.attr('stroke','black')
+						.attr("stroke-width", "0.1px")
+						.style('fill','white')
+				})
+
+			 
+			})	
+			})
+		</script>
+		
+	</body>
+</html>
